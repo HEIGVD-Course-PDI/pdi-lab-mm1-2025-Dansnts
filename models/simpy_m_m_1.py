@@ -4,6 +4,7 @@ The inter-arrival time is exponentially distributed (Poisson arrivals).
 The service time is exponentially distributed.
 """
 
+import random
 from statistics import mean
 
 # ---------------------------------------------------------------------------
@@ -14,18 +15,19 @@ class SimpyQueue:
         """Initialize the parameters of the M/M/1 queueing system and the statistics arrays."""
         self.env = env
         self.server = server
-        self.interarrival_time = 1.0 / arrival_rate
-        self.service_time = 1.0 / service_rate
+        self.arrival_rate = arrival_rate 
+        self.service_rate = service_rate 
         # Statistics
         self.response_times = []
         self.clients_in_system = []
+        self.request_count = 0  # Track total requests for debugging
 
 
     def generate_requests(self):
         """Generate requests following a Poisson process."""
         while True:
-            # ******** Add your code here ********
-            pass
+            yield self.env.timeout(random.expovariate(self.arrival_rate))
+            self.env.process(self.process_request())
 
 
     def process_request(self):
@@ -34,11 +36,16 @@ class SimpyQueue:
         The method also records statistics about the response time.
         """
         arrival_time = self.env.now
+        self.request_count += 1
 
-        # ******** Add your code here ********
+        with self.server.request() as request:
+            yield request
+            
+            yield self.env.timeout(random.expovariate(self.service_rate))
 
         departure_time = self.env.now
-        self.response_times.append(departure_time - arrival_time)
+        response_time = departure_time - arrival_time
+        self.response_times.append(response_time)
 
 
     def record_statistics(self, sampling_interval):
@@ -50,6 +57,15 @@ class SimpyQueue:
 
     def compute_statistics(self):
         """Compute and return the mean response time and mean number of clients in the system."""
+        if not self.response_times:
+            return {'E[T]': 0, 'E[N]': 0}
+        
         mean_response_time = mean(self.response_times)
         mean_clients_in_system = mean(self.clients_in_system)
+        
+        # Debug info
+        print(f"Total requests processed: {self.request_count}")
+        print(f"Response times recorded: {len(self.response_times)}")
+        print(f"Utilization: {self.arrival_rate / self.service_rate:.3f}")
+        
         return {'E[T]': mean_response_time, 'E[N]': mean_clients_in_system}
